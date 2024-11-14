@@ -351,7 +351,6 @@ class RideShareGameAnalyzer:
             return "lightblue"
 
         total_payoff = sum(node["payoff"])
-        # Clamp total_payoff between 0 and 200 to ensure valid RGB values
         total_payoff = max(0, min(total_payoff, 200))
         # Color gradient from red (low) to green (high)
         green_value = int((total_payoff / 200) * 255)
