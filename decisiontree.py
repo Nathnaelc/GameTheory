@@ -4,25 +4,23 @@ import networkx as nx
 
 class RideShareGameAnalyzer:
     def __init__(self, market_size=1000000, price_sensitivity=0.3, scenario='Short-term'):
-        """
-        Initialize the RideShareGameAnalyzer with relevant parameters.
-        
-        :param market_size: Total market size (e.g., number of rides)
-        :param price_sensitivity: Elasticity coefficient influencing market share based on price differences
-        :param scenario: 'Short-term' or 'Long-term' affecting payoff calculations
-        """
         self.market_size = market_size
         self.price_sensitivity = price_sensitivity
         self.scenario = scenario
-
-        # Define pricing tiers (in dollars)
+        
         self.price_tiers = {
             "High": 25,
             "Medium": 20,
             "Low": 15
         }
-
-        # Initialize game state
+        
+        # Add abbreviations for node labels
+        self.node_abbrev = {
+            "High": "H",
+            "Medium": "M",
+            "Low": "L"
+        }
+        
         self.nodes = {}
         self.edges = []
         self.initialize_game()
@@ -35,60 +33,55 @@ class RideShareGameAnalyzer:
         self.edges = self.initialize_edges()
 
     def initialize_nodes(self):
-        """
-        Initializes nodes with enhanced metadata.
-        
-        :return: Dictionary of nodes with their attributes
-        """
         base_nodes = {
-            "Start": {"label": "Waymo's Initial Move", "payoff": None, "pos": (0, 2)},
-            "W_High": {"label": "Waymo High ($25)", "payoff": None, "pos": (-2, 1)},
-            "W_Medium": {"label": "Waymo Medium ($20)", "payoff": None, "pos": (0, 1)},
-            "W_Low": {"label": "Waymo Low ($15)", "payoff": None, "pos": (2, 1)},
+            "Start": {"label": "Start", "short_label": "S", "payoff": None, "pos": (0, 2)},
+            "W_High": {"label": "Waymo High ($25)", "short_label": "W-H", "payoff": None, "pos": (-2, 1)},
+            "W_Medium": {"label": "Waymo Medium ($20)", "short_label": "W-M", "payoff": None, "pos": (0, 1)},
+            "W_Low": {"label": "Waymo Low ($15)", "short_label": "W-L", "payoff": None, "pos": (2, 1)},
         }
 
-        # Calculate detailed payoffs and market dynamics for each terminal node
         for w_price in ["High", "Medium", "Low"]:
             for c_price in ["High", "Medium", "Low"]:
                 node_key = f"C_{w_price}_{c_price}"
-
-                # Calculate market shares based on price differential
+                
+                # Calculate market dynamics
                 price_diff = self.price_tiers[c_price] - self.price_tiers[w_price]
                 waymo_share = 0.5 + (price_diff * self.price_sensitivity)
-                waymo_share = max(0.1, min(0.9, waymo_share))  # Ensure within [0.1, 0.9]
+                waymo_share = max(0.1, min(0.9, waymo_share))
                 cruise_share = 1 - waymo_share
 
-                # Calculate revenues
+                # Calculate revenues and payoffs
                 waymo_revenue = waymo_share * self.market_size * self.price_tiers[w_price]
                 cruise_revenue = cruise_share * self.market_size * self.price_tiers[c_price]
 
-                # Adjust payoffs based on scenario
-                if self.scenario == 'Short-term':
-                    waymo_payoff = waymo_revenue
-                    cruise_payoff = cruise_revenue
-                elif self.scenario == 'Long-term':
-                    # Assume long-term payoffs are cumulative over 12 months
+                if self.scenario == 'Long-term':
                     waymo_payoff = waymo_revenue * 12
                     cruise_payoff = cruise_revenue * 12
+                else:
+                    waymo_payoff = waymo_revenue
+                    cruise_payoff = cruise_revenue
 
-                # Introduce potential negative payoffs
+                # Penalties for low pricing
                 if w_price == 'Low' and waymo_revenue < 0.8 * (self.market_size * self.price_tiers['High']):
-                    waymo_payoff -= 50000  # Arbitrary loss
+                    waymo_payoff -= 50000
                 if c_price == 'Low' and cruise_revenue < 0.8 * (self.market_size * self.price_tiers['High']):
-                    cruise_payoff -= 50000  # Arbitrary loss
+                    cruise_payoff -= 50000
 
-                # Normalize payoffs for visualization (0-100 scale)
-                # Adjust max_possible_revenue based on scenario to prevent over-normalization
+                # Normalize payoffs
                 max_possible_revenue = self.market_size * max(self.price_tiers.values()) * (12 if self.scenario == 'Long-term' else 1)
                 waymo_payoff_normalized = int((waymo_payoff / max_possible_revenue) * 100)
                 cruise_payoff_normalized = int((cruise_payoff / max_possible_revenue) * 100)
-
-                # Clamp normalized payoffs to prevent negative values
+                
+                # Ensure non-negative payoffs
                 waymo_payoff_normalized = max(0, waymo_payoff_normalized)
                 cruise_payoff_normalized = max(0, cruise_payoff_normalized)
 
+                # Create short label using abbreviations
+                short_label = f"{self.node_abbrev[w_price]}-{self.node_abbrev[c_price]}"
+
                 base_nodes[node_key] = {
-                    "label": f"Cruise {c_price} after Waymo {w_price}",
+                    "label": f"W:{w_price}/C:{c_price}",
+                    "short_label": short_label,
                     "payoff": (waymo_payoff_normalized, cruise_payoff_normalized),
                     "pos": self.get_terminal_position(w_price, c_price),
                     "market_share": (waymo_share, cruise_share),
@@ -99,6 +92,8 @@ class RideShareGameAnalyzer:
                 }
 
         return base_nodes
+    
+
 
     def get_terminal_position(self, w_price, c_price):
         """
@@ -351,6 +346,7 @@ class RideShareGameAnalyzer:
             return "lightblue"
 
         total_payoff = sum(node["payoff"])
+
         total_payoff = max(0, min(total_payoff, 200))
         # Color gradient from red (low) to green (high)
         green_value = int((total_payoff / 200) * 255)
