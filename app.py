@@ -382,6 +382,6 @@ def update_payoff_matrix(elasticity, market_size, rate_of_return, windfall, disc
         analysis_text += f"\n*{strategy_explanation}*"
 
     return data_table, dcc.Markdown(analysis_text)
-
+server = app.server
 if __name__ == '__main__':
     app.run_server(debug=True)
